@@ -16,17 +16,7 @@ class JmResponse:
     Base object for data returned by JoinMarket server.
     """
 
-    __slots__ = ('succeed', 'status')
-
-    def __init__(self, json: Dict[str, Any]):
-        if not isinstance(json['succeed'], bool):
-            raise JmDeserializeError
-        if not isinstance(json['status'], int):
-            raise JmDeserializeError
-        # whatever the request was successful
-        self.succeed: bool = json['succeed']
-        # http status code
-        self.status: int = json['status']
+    __slots__ = ()
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -50,7 +40,6 @@ class ListWallets(JmResponse):
     __slots__ = ('wallets',)
 
     def __init__(self, json):
-        super().__init__(json)
         if not isinstance(json['wallets'], list):
             raise JmDeserializeError
         # each filenames in `datadir/wallets` (filename only, including `.jmdat`, not full path).
@@ -65,7 +54,6 @@ class CreateWallet(JmResponse):
     __slots__ = ('wallet_name', 'already_loaded', 'token', 'seedphrase')
 
     def __init__(self, json):
-        super().__init__(json)
         if not isinstance(json['walletname'], str):
             raise JmDeserializeError
         if not isinstance(json['already_loaded'], bool):
@@ -92,7 +80,6 @@ class UnlockWallet(JmResponse):
     __slots__ = ('wallet_name', 'already_loaded', 'token')
 
     def __init__(self, json):
-        super().__init__(json)
         if not isinstance(json['walletname'], str):
             raise JmDeserializeError
         if not isinstance(json['already_loaded'], bool):
@@ -118,7 +105,6 @@ class LockWallet(JmResponse):
     __slots__ = ('walletname', 'already_locked')
 
     def __init__(self, json: Dict[str, Any]):
-        super().__init__(json)
         if not isinstance(json['walletname'], str):
             raise JmDeserializeError
         if not isinstance(json['already_locked'], bool):
@@ -137,7 +123,6 @@ class DisplayWallet(JmResponse):
     __slots__ = ('wallet_name', 'wallet_info')
 
     def __init__(self, json: Dict[str, Any]):
-        super().__init__(json)
         if not isinstance(json['walletname'], str):
             raise JmDeserializeError
         if not isinstance(json['walletinfo'], dict):
@@ -154,7 +139,6 @@ class GetAddress(JmResponse):
     __slots__ = ('address',)
 
     def __init__(self, json: Dict[str, Any]):
-        super().__init__(json)
         if not isinstance(json['address'], str):
             raise JmDeserializeError
         # The first unused address in the *external* branch of the given account/mixdepth.
@@ -169,7 +153,6 @@ class ListUtxos(JmResponse):
     __slots__ = ('utxos',)
 
     def __init__(self, json: Dict[str, Any]):
-        super().__init__(json)
         if not isinstance(json['utxos'], dict):
             raise JmDeserializeError
         # All utxos currently owned by the wallet.
@@ -184,7 +167,6 @@ class DirectSend(JmResponse):
     __slots__ = ('walletname', 'txinfo')
 
     def __init__(self, json: Dict[str, Any]):
-        super().__init__(json)
         if not isinstance(json['walletname'], str):
             raise JmDeserializeError
         if not isinstance(json['txinfo'], str):
@@ -208,7 +190,6 @@ class DoCoinjoin(JmResponse):
     __slots__ = ('coinjoin_started',)
 
     def __init__(self, json: Dict[str, Any]):
-        super().__init__(json)
         if not isinstance(json['coinjoin_started'], bool):
             raise JmDeserializeError
         # This only indicates start OK, not completion.
@@ -223,7 +204,6 @@ class GetSession(JmResponse):
     __slots__ = ('session', 'maker_running', 'coinjoin_in_process', 'wallet_name')
 
     def __init__(self, json: Dict[str, Any]):
-        super().__init__(json)
         if not isinstance(json['session'], bool):
             raise JmDeserializeError
         if not isinstance(json['maker_running'], bool):
@@ -248,7 +228,6 @@ class MakerStartStop(JmResponse):
     __slots__ = ('walletname',)
 
     def __init__(self, json: Dict[str, Any]):
-        super().__init__(json)
         if not isinstance(json['walletname'], str):
             raise JmDeserializeError
         # Joinmarket internal wallet name, `joinmarket-<hex encoded 3 byte hash identifier>`.

@@ -11,10 +11,6 @@ def test_list_wallets(jmrpc):
     response = jmrpc.list_wallets()
     assert isinstance(response, ListWallets)
     assert isinstance(response.dict, dict)
-    assert isinstance(response.succeed, bool)
-    assert response.succeed is True
-    assert isinstance(response.status, int)
-    assert response.status == 200
     assert isinstance(response.wallets, list)
 
 
