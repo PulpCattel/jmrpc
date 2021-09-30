@@ -228,7 +228,7 @@ class JmRpc:
         Call `listwallets` :class:`RpcMethod`
         """
         return ListWallets(self._get(RpcMethod.LIST_WALLETS,
-                                     **kwargs)[0])
+                                     **kwargs))
 
     def create_wallet(self,
                       wallet_name: str,
@@ -243,7 +243,7 @@ class JmRpc:
                 'wallettype': wallet_type}
         response = CreateWallet(self._post(RpcMethod.CREATE_WALLET,
                                            body,
-                                           **kwargs)[0])
+                                           **kwargs))
         self._cache_token(response.token)
         return response
 
@@ -254,7 +254,7 @@ class JmRpc:
         response = UnlockWallet(self._post(RpcMethod.UNLOCK_WALLET,
                                            {'password': pwd},
                                            {'walletname': wallet_name},
-                                           **kwargs)[0])
+                                           **kwargs))
         self._cache_token(response.token)
         return response
 
@@ -264,7 +264,7 @@ class JmRpc:
         """
         return LockWallet(self._get(RpcMethod.LOCK_WALLET,
                                     {'walletname': wallet_name},
-                                    **kwargs)[0])
+                                    **kwargs))
 
     def display_wallet(self, wallet_name: str, **kwargs) -> DisplayWallet:
         """
@@ -272,7 +272,7 @@ class JmRpc:
         """
         return DisplayWallet(self._get(RpcMethod.DISPLAY_WALLET,
                                        {'walletname': wallet_name},
-                                       **kwargs)[0])
+                                       **kwargs))
 
     def get_address(self, wallet_name: str, mixdepth: str, **kwargs) -> GetAddress:
         """
@@ -281,7 +281,7 @@ class JmRpc:
         return GetAddress(self._get(RpcMethod.GET_ADDRESS,
                                     {'walletname': wallet_name,
                                      'mixdepth': mixdepth},
-                                    **kwargs)[0])
+                                    **kwargs))
 
     def list_utxos(self, wallet_name: str, **kwargs) -> ListUtxos:
         """
@@ -289,7 +289,7 @@ class JmRpc:
         """
         return ListUtxos(self._get(RpcMethod.LIST_UTXOS,
                                    {'walletname': wallet_name},
-                                   **kwargs)[0])
+                                   **kwargs))
 
     def direct_send(self,
                     wallet_name: str,
@@ -306,7 +306,7 @@ class JmRpc:
                                       'destination': destination},
                                      {'walletname': wallet_name},
                                      **kwargs
-                                     )[0])
+                                     ))
 
     def do_coinjoin(self,
                     wallet_name: str,
@@ -325,14 +325,14 @@ class JmRpc:
                                       'destination': destination},
                                      {'walletname': wallet_name},
                                      **kwargs
-                                     )[0])
+                                     ))
 
     def session(self, **kwargs) -> GetSession:
         """
         Call `session` GET :class:`RpcMethod`
         """
         return GetSession(self._get(RpcMethod.SESSION,
-                                    **kwargs)[0])
+                                    **kwargs))
 
     def maker_start(self,
                     wallet_name: str,
@@ -353,7 +353,7 @@ class JmRpc:
                                           'minsize': min_size},
                                          {'walletname': wallet_name},
                                          **kwargs
-                                         )[0])
+                                         ))
 
     def maker_stop(self, wallet_name: str, **kwargs) -> MakerStartStop:
         """
@@ -361,4 +361,4 @@ class JmRpc:
         """
         return MakerStartStop(self._get(RpcMethod.MAKER_STOP,
                                         {'walletname': wallet_name},
-                                        **kwargs)[0])
+                                        **kwargs))
