@@ -6,7 +6,7 @@ setup(name='jmrpc',
       url='https://github.com/PulpCattel/jmrpc',
       zip_safe=False,
       packages=['jmrpc'],
-      install_requires=['requests'],
+      install_requires=['requests', 'schematics'],
       python_requires=">=3.7",
       extras_require={
           'dev': ['pytest', 'mypy', 'pylint', 'types-requests']})

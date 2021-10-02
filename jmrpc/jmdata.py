@@ -1,8 +1,10 @@
 """
 Objects for JoinMarket JSON-RPC response content
 """
-from json import loads, JSONDecodeError, dumps
-from typing import Dict, List, Any
+from json import dumps
+
+from schematics.models import Model
+from schematics.types import StringType, ListType, IntType, BooleanType, ModelType, FloatType
 
 
 class JmDeserializeError(Exception):
@@ -11,224 +13,242 @@ class JmDeserializeError(Exception):
     """
 
 
-class JmResponse:
+class JmResponse(Model):
     """
     Base object for data returned by JoinMarket server.
     """
 
-    __slots__ = ()
-
     def __getitem__(self, item):
         return getattr(self, item)
 
-    def __str__(self):
-        return dumps(self.dict)
-
-    @property
-    def dict(self) -> Dict:
-        """
-        Dictionary representation.
-        """
-        return {attr: self[attr] for attr in self.__slots__}
+    def __repr__(self):
+        return dumps(self.to_native())
 
 
 class ListWallets(JmResponse):
     """
-    `listwallet` :class:`RpcMethod` response content
+    `listwallet` :class:`RpcMethod` response content.
+
+    Fields:
+
+    * wallets: Current available wallets.
     """
 
-    __slots__ = ('wallets',)
-
-    def __init__(self, json):
-        if not isinstance(json['wallets'], list):
-            raise JmDeserializeError
-        # each filenames in `datadir/wallets` (filename only, including `.jmdat`, not full path).
-        self.wallets: List[str] = json['wallets']
+    wallets = ListType(StringType, required=True)
 
 
 class CreateWallet(JmResponse):
     """
-    `createwallet` :class:`RpcMethod` response content
+    `createwallet` :class:`RpcMethod` response content.
+
+    Fields:
+
+    * wallet_name: The filename for the wallet created on disk in `datadir/wallets`.
+    * already_loaded: False for successful creation.
+    * token: The created JWT token.
+    * seedphrase: The BIP39 12 word seedphrase of the newly created JoinMarket wallet.
     """
 
-    __slots__ = ('wallet_name', 'already_loaded', 'token', 'seedphrase')
-
-    def __init__(self, json):
-        if not isinstance(json['walletname'], str):
-            raise JmDeserializeError
-        if not isinstance(json['already_loaded'], bool):
-            raise JmDeserializeError
-        if not isinstance(json['token'], str):
-            raise JmDeserializeError
-        if not isinstance(json['seedphrase'], str):
-            raise JmDeserializeError
-        # The filename for the wallet created on disk in `datadir/wallets`.
-        self.wallet_name: str = json['walletname']
-        # False for successful creation.
-        self.already_loaded: bool = json['already_loaded']
-        # the created JWT token.
-        self.token: str = json['token']
-        # The BIP39 12 word seedphrase of the newly created JoinMarket wallet.
-        self.seedphrase: str = json['seedphrase']
+    wallet_name = StringType(required=True, deserialize_from='walletname')
+    already_loaded = BooleanType(required=True)
+    token = StringType()
+    seed_phrase = StringType(deserialize_from='seedphrase')
 
 
 class UnlockWallet(JmResponse):
     """
-    `unlockwallet` :class:`RpcMethod` response content
+    `unlockwallet` :class:`RpcMethod` response content.
+
+    Fields:
+
+    * wallet_name: The filename for the wallet created on disk in `datadir/wallets`.
+    * already_loaded: False in case there is no currently unlocked wallet, and this wallet is unlocked successfully. True in case the same wallet is already unlocked, or another wallet is currently unlocked (note that this is not an error response).
+    * token: The created JWT token.
     """
 
-    __slots__ = ('wallet_name', 'already_loaded', 'token')
-
-    def __init__(self, json):
-        if not isinstance(json['walletname'], str):
-            raise JmDeserializeError
-        if not isinstance(json['already_loaded'], bool):
-            raise JmDeserializeError
-        if not isinstance(json['token'], str):
-            raise JmDeserializeError
-        # The filename for the wallet created on disk in `datadir/wallets`.
-        self.wallet_name: str = json['walletname']
-        # False in case there is no currently unlocked wallet,
-        # and this wallet is unlocked successfully.
-        # True in case the same wallet is already unlocked,
-        # or another wallet is currently unlocked (note that this is not an error response).
-        self.already_loaded: bool = json['already_loaded']
-        # The created JWT token.
-        self.token: str = json['token']
+    wallet_name = StringType(required=True, deserialize_from='walletname')
+    already_loaded = BooleanType(required=True)
+    token = StringType(serialize_when_none=False)
 
 
 class LockWallet(JmResponse):
     """
-    lockwallet` :class:`RpcMethod` response content
+    lockwallet` :class:`RpcMethod` response content.
+
+    Fields:
+
+    * wallet_name: The filename for the wallet created on disk in `datadir/wallets`.
+    * already_locked: False if there was an unlocked wallet, and we locked it, otherwise true.
     """
 
-    __slots__ = ('walletname', 'already_locked')
+    wallet_name = StringType(required=True, deserialize_from='walletname')
+    already_locked = BooleanType(required=True)
 
-    def __init__(self, json: Dict[str, Any]):
-        if not isinstance(json['walletname'], str):
-            raise JmDeserializeError
-        if not isinstance(json['already_locked'], bool):
-            raise JmDeserializeError
-        # The filename for the wallet created on disk in `datadir/wallets`.
-        self.walletname: str = json['walletname']
-        # False if there was an unlocked wallet, and we locked it, otherwise true.
-        self.already_locked: bool = json['already_locked']
+
+class Coin(JmResponse):
+    """
+    Represent a single coin inside the wallet information returned by `displaywallet` :class:`RpcMethod`.
+    """
+
+    hd_path = StringType(required=True)
+    address = StringType(required=True)
+    amount = FloatType(required=True)
+    labels = StringType(required=True)
+
+
+class Branch(JmResponse):
+    """
+    Represent a single branch inside the wallet information returned by `displaywallet` :class:`RpcMethod`.
+    """
+
+    branch = StringType(required=True)
+    balance = FloatType(required=True)
+    entries = ListType(ModelType(Coin), required=True)
+
+
+class Account(JmResponse):
+    """
+    Represent a single account inside the wallet information returned by `displaywallet` :class:`RpcMethod`.
+    """
+    account = IntType(required=True)
+    account_balance = FloatType(required=True)
+    branches = ListType(ModelType(Branch), required=True)
+
+
+class WalletInfo(JmResponse):
+    """
+    Represent the wallet information returned by `displaywallet` :class:`RpcMethod`.
+    """
+    wallet_name = StringType(required=True)
+    total_balance = FloatType(required=True)
+    accounts = ListType(ModelType(Account), required=True)
 
 
 class DisplayWallet(JmResponse):
     """
-    `displaywallet` :class:`RpcMethod` response content
+    `displaywallet` :class:`RpcMethod` response content.
+
+    Fields:
+
+    * wallet_name: The filename for the wallet created on disk in `datadir/wallets`.
+    * wallet_info: Detailed breakdown of wallet contents by account.
     """
 
-    __slots__ = ('wallet_name', 'wallet_info')
-
-    def __init__(self, json: Dict[str, Any]):
-        if not isinstance(json['walletname'], str):
-            raise JmDeserializeError
-        if not isinstance(json['walletinfo'], dict):
-            raise JmDeserializeError
-        self.wallet_name = json['walletname']
-        self.wallet_info = json['walletinfo']
+    wallet_name = StringType(required=True, deserialize_from='walletname')
+    wallet_info = ModelType(WalletInfo, required=True, deserialize_from='walletinfo')
 
 
 class GetAddress(JmResponse):
     """
-    `getaddress` :class:`RpcMethod` response content
+    `getaddress` :class:`RpcMethod` response content.
+
+    Fields:
+
+    * address: The first unused address in the *external* branch of the given account/mixdepth.
     """
 
-    __slots__ = ('address',)
+    address = StringType(required=True)
 
-    def __init__(self, json: Dict[str, Any]):
-        if not isinstance(json['address'], str):
-            raise JmDeserializeError
-        # The first unused address in the *external* branch of the given account/mixdepth.
-        self.address: str = json['address']
+
+class Utxo(JmResponse):
+    """
+    Single JoinMarket UTXO as returned by `listutxos` method.
+    """
+
+    outpoint = StringType(required=True, deserialize_from='utxo')
+    address = StringType(required=True)
+    value = IntType(required=True)
+    tries = IntType(required=True)
+    tries_remaining = IntType(required=True)
+    external = BooleanType(required=True)
+    mixdepth = IntType(required=True)
+    confirmations = IntType(required=True)
+    frozen = BooleanType(required=True)
 
 
 class ListUtxos(JmResponse):
     """
-    `listutxos` :class:`RpcMethod` response content
+    `listutxos` :class:`RpcMethod` response content.
+
+    Fields:
+
+    * utxos: All utxos currently owned by the wallet.
     """
 
-    __slots__ = ('utxos',)
+    utxos = ListType(ModelType(Utxo), required=True)
 
-    def __init__(self, json: Dict[str, Any]):
-        if not isinstance(json['utxos'], dict):
-            raise JmDeserializeError
-        # All utxos currently owned by the wallet.
-        self.utxos: Dict = json['utxos']
+
+class Input(JmResponse):
+    """
+    Represent an input inside a transaction as returned by `directsend` :class:`RpcMethod`.
+    """
+
+    outpoint = StringType(required=True)
+    scriptSig = StringType(required=True)
+    nSequence = IntType(required=True)
+    witness = StringType(required=True)
+
+
+class Output(JmResponse):
+    """
+    Represent an output inside a transaction as returned by `directsend` :class:`RpcMethod`.
+    """
+
+    value_sats = IntType(required=True)
+    scriptPubKey = StringType(required=True)
+    address = StringType(required=True)
+
+
+class Tx(JmResponse):
+    """
+    Represent a transaction as returned by `directsend` :class:`RpcMethod`.
+    """
+
+    hex = StringType(required=True)
+    txid = StringType(required=True)
+    inputs = ListType(ModelType(Input), required=True)
+    outputs = ListType(ModelType(Output), required=True)
+    nLockTime = IntType(required=True)
+    nVersion = IntType(required=True)
 
 
 class DirectSend(JmResponse):
     """
-    `directsend` :class:`RpcMethod` response content
+    `directsend` :class:`RpcMethod` response content.
+
+    Fields:
+
+    * tx_info: Information about the Bitcoin transaction.
     """
 
-    __slots__ = ('walletname', 'txinfo')
-
-    def __init__(self, json: Dict[str, Any]):
-        if not isinstance(json['walletname'], str):
-            raise JmDeserializeError
-        if not isinstance(json['txinfo'], str):
-            raise JmDeserializeError
-        try:
-            txinfo: Dict = loads(json['txinfo'])
-        except JSONDecodeError as err:
-            raise JmDeserializeError from err
-        if not isinstance(txinfo, dict):
-            raise JmDeserializeError
-        # The filename for the wallet created on disk in `datadir/wallets`.
-        self.walletname: str = json['walletname']
-        self.txinfo: Dict = txinfo
+    tx_info = ModelType(Tx, required=True, deserialize_from='txinfo')
 
 
 class DoCoinjoin(JmResponse):
     """
-    `docoinjoin` :class:`RpcMethod` response content
+    `docoinjoin` :class:`RpcMethod` response content.
+
+    Fields:
+
+    * coinjoin_started: This only indicates start OK, not completion.
     """
 
-    __slots__ = ('coinjoin_started',)
-
-    def __init__(self, json: Dict[str, Any]):
-        if not isinstance(json['coinjoin_started'], bool):
-            raise JmDeserializeError
-        # This only indicates start OK, not completion.
-        self.coinjoin_started: bool = json['coinjoin_started']
+    coinjoin_started = BooleanType(required=True)
 
 
 class GetSession(JmResponse):
     """
-    `session` :class:`RpcMethod` response content
+    `session` :class:`RpcMethod` response content.
+
+    Fields:
+
+    * session: True if and only if there is an active authentication and unlocked wallet.
+    * maker_running: True if a yield generator is running, False otherwise.
+    * coinjoin_in_process: True if a taker coinjoin is in progress, False otherwise.
+    * wallet_name: Currently loaded wallet.
     """
 
-    __slots__ = ('session', 'maker_running', 'coinjoin_in_process', 'wallet_name')
-
-    def __init__(self, json: Dict[str, Any]):
-        if not isinstance(json['session'], bool):
-            raise JmDeserializeError
-        if not isinstance(json['maker_running'], bool):
-            raise JmDeserializeError
-        if not isinstance(json['coinjoin_in_process'], bool):
-            raise JmDeserializeError
-        if not isinstance(json['wallet_name'], str):
-            raise JmDeserializeError
-        # True if and only if there is an active authentication and unlocked wallet.
-        self.session: bool = json['session']
-        self.maker_running: bool = json['maker_running']
-        self.coinjoin_in_process: bool = json['coinjoin_in_process']
-        # Joinmarket internal wallet name, `joinmarket-<hex encoded 3 byte hash identifier>`.
-        self.wallet_name: str = json['wallet_name']
-
-
-class MakerStartStop(JmResponse):
-    """
-    `maker-start` and `maker-stop` :class:`RpcMethod` response content
-    """
-
-    __slots__ = ('walletname',)
-
-    def __init__(self, json: Dict[str, Any]):
-        if not isinstance(json['walletname'], str):
-            raise JmDeserializeError
-        # Joinmarket internal wallet name, `joinmarket-<hex encoded 3 byte hash identifier>`.
-        self.walletname: str = json['walletname']
+    session = BooleanType(required=True)
+    maker_running = BooleanType(required=True)
+    coinjoin_in_process = BooleanType(required=True)
+    wallet_name = StringType(required=True)
