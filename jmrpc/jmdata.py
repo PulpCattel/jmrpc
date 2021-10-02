@@ -7,12 +7,6 @@ from schematics.models import Model
 from schematics.types import StringType, ListType, IntType, BooleanType, ModelType, FloatType
 
 
-class JmDeserializeError(Exception):
-    """
-    Thrown when the content we got from JoinMarket server is not expected data.
-    """
-
-
 class JmResponse(Model):
     """
     Base object for data returned by JoinMarket server.
