@@ -2,6 +2,7 @@
 Objects for JoinMarket JSON-RPC response content
 """
 from json import dumps
+from typing import Dict
 
 from schematics.models import Model
 from schematics.types import StringType, ListType, IntType, BooleanType, ModelType, FloatType
@@ -16,7 +17,11 @@ class JmResponse(Model):
         return getattr(self, item)
 
     def __repr__(self):
-        return dumps(self.to_native())
+        return dumps(self.dict)
+
+    @property
+    def dict(self) -> Dict:
+        return self.to_native()
 
 
 class ListWallets(JmResponse):

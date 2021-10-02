@@ -34,15 +34,13 @@ For easier testing you may want to skip SSL cert verification, e.g.:
 
 For more info see [here](https://docs.python-requests.org/en/latest/user/advanced/#client-side-certificates).
 
-`response` is an object representation of the response content from JoinMarket.
+`response` is an [object representation](https://github.com/schematics/schematics) of the response content from JoinMarket.
 
 ```
 >>> response['wallets']
 ['wallet.jmdat', 'wallet1.jmdat', 'wallet2.jmdat']
 >>> response.wallets
 ['wallet.jmdat', 'wallet1.jmdat', 'wallet2.jmdat']
->>> response.status
-200
 >>> response.dict
 {'wallets': ['wallet.jmdat', 'wallet1.jmdat', 'wallet2.jmdat']}
 ```
