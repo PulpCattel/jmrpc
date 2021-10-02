@@ -3,6 +3,7 @@ A simple and high level JSON-RPC client library for JoinMarket
 """
 from collections import namedtuple
 from enum import Enum
+from json import loads
 from logging import getLogger, DEBUG
 from typing import Any, Dict, Optional
 
@@ -10,7 +11,7 @@ from requests import Session, Response
 
 from jmrpc.jmdata import GetSession
 from jmrpc.jmdata import ListWallets, CreateWallet, LockWallet, \
-    UnlockWallet, DisplayWallet, GetAddress, ListUtxos, DirectSend, DoCoinjoin, MakerStartStop
+    UnlockWallet, DisplayWallet, GetAddress, ListUtxos, DirectSend, DoCoinjoin
 
 HEADERS = {"User-Agent": "jmrpc",
            "Content-Type": "application/json",
@@ -42,17 +43,17 @@ class JmRpcErrorType(Enum):
 
 class RpcMethod(Enum):
     """
-    JoinMarket supported JSON-RPC method
+    JoinMarket supported JSON-RPC methods:
 
     * **listwallets**: List currently available wallet files
     * **createwallet**: Make a new wallet
     * **unlockwallet**: Open an existing wallet using a password
     * **lockwallet**: Stop the wallet service for the current wallet
-    * **displaywallet**: Get JSON representation of wallet contents for wallet named `walletname`
+    * **displaywallet**: Get JSON representation of wallet contents
     * **getaddress**: Get a new address for deposits
-    * **listutxos**: TODO
+    * **listutxos**: List details of all utxos currently in the wallet.
     * **directsend**: Make a bitcoin payment from the wallet, without coinjoin
-    * **docoinjoin**: TODO
+    * **docoinjoin**: Initiate a coinjoin as taker
     * **session**: Check the status and liveness of the session
     * **maker-start**: Starts the yield generator/maker service for the given wallet
     * **maker-stop**: Stops the yieldgenerator/maker service if currently running for the given wallet
@@ -83,8 +84,10 @@ class JmRpc:
 
     Can be used with context manager to cleanly close the session.
 
-    >>> with JmRpc() as jmrpc:
-    ...    jmrpc._get(RpcMethod.LIST_WALLETS)
+    >>> with JmRpc() as jm:
+    ...     print(jm.session())
+    ...
+    {"session": false, "maker_running": false, "coinjoin_in_process": false, "wallet_name": "None"}
     """
 
     __slots__ = ('_id_count', '_session', '_endpoint')
@@ -300,13 +303,16 @@ class JmRpc:
         """
         Call `directsend` POST :class:`RpcMethod`
         """
-        return DirectSend(self._post(RpcMethod.DIRECT_SEND,
-                                     {'mixdepth': mixdepth,
-                                      'amount_sats': amount_sats,
-                                      'destination': destination},
-                                     {'walletname': wallet_name},
-                                     **kwargs
-                                     ))
+        response = self._post(RpcMethod.DIRECT_SEND,
+                              {'mixdepth': mixdepth,
+                               'amount_sats': amount_sats,
+                               'destination': destination},
+                              {'walletname': wallet_name},
+                              **kwargs
+                              )
+        # TODO, remove this if/when JoinMarket server does it for us.
+        response['txinfo'] = loads(response['txinfo'])
+        return DirectSend(response)
 
     def do_coinjoin(self,
                     wallet_name: str,
@@ -341,24 +347,24 @@ class JmRpc:
                     cjfee_r: str,
                     order_type: str,
                     min_size: str,
-                    **kwargs) -> MakerStartStop:
+                    **kwargs) -> None:
         """
         Call `maker-start` POST :class:`RpcMethod`
         """
-        return MakerStartStop(self._post(RpcMethod.MAKER_START,
-                                         {'txfee': tx_fee,
-                                          'cjfee_a': cjfee_a,
-                                          'cjfee_r': cjfee_r,
-                                          'ordertype': order_type,
-                                          'minsize': min_size},
-                                         {'walletname': wallet_name},
-                                         **kwargs
-                                         ))
+        self._post(RpcMethod.MAKER_START,
+                   {'txfee': tx_fee,
+                    'cjfee_a': cjfee_a,
+                    'cjfee_r': cjfee_r,
+                    'ordertype': order_type,
+                    'minsize': min_size},
+                   {'walletname': wallet_name},
+                   **kwargs
+                   )
 
-    def maker_stop(self, wallet_name: str, **kwargs) -> MakerStartStop:
+    def maker_stop(self, wallet_name: str, **kwargs) -> None:
         """
         Call `maker-stop` GET :class:`RpcMethod`
         """
-        return MakerStartStop(self._get(RpcMethod.MAKER_STOP,
-                                        {'walletname': wallet_name},
-                                        **kwargs))
+        self._get(RpcMethod.MAKER_STOP,
+                  {'walletname': wallet_name},
+                  **kwargs)
