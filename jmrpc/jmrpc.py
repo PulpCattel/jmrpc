@@ -6,9 +6,9 @@ from collections import namedtuple
 from enum import Enum
 from logging import getLogger, DEBUG
 from ssl import create_default_context
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, AsyncGenerator
 
-from aiohttp import ClientSession, ClientResponse, TCPConnector
+from aiohttp import ClientSession, ClientResponse, TCPConnector, ClientWebSocketResponse
 from ujson import loads, dumps
 
 from jmrpc.jmdata import ListWallets, CreateWallet, LockWallet, \
@@ -94,7 +94,7 @@ class JmRpc:
     {"session": false, "maker_running": false, "coinjoin_in_process": false, "wallet_name": "None"}
     """
 
-    __slots__ = ('_id_count', '_session', '_endpoint')
+    __slots__ = ('_id_count', '_session', '_endpoint', '_ws')
 
     def __init__(self,
                  session: Optional[ClientSession] = None,
@@ -120,12 +120,17 @@ class JmRpc:
                                           headers=HEADERS,
                                           connector=TCPConnector(ssl=ssl_context))
         self._endpoint = endpoint
+        self._ws: Optional[ClientWebSocketResponse] = None
 
     async def __aenter__(self) -> 'JmRpc':
+        self._ws = await self._session.ws_connect('wss://127.0.0.1:28283')
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
+
+    async def start_ws(self) -> None:
+        self._ws = await self._session.ws_connect('wss://127.0.0.1:28283')
 
     async def close(self) -> None:
         """
@@ -133,7 +138,7 @@ class JmRpc:
 
         https://docs.aiohttp.org/en/stable/client_advanced.html#graceful-shutdown
         """
-
+        await self._ws.close()
         await self._session.close()
         await sleep(0.25)
 
@@ -165,6 +170,24 @@ class JmRpc:
         :return: True if we currently have a token, False otherwise.
         """
         return 'Authorization' in self._session.headers.keys()
+
+    async def ws_read(self) -> AsyncGenerator[Any, Any]:
+        """
+        Read from websocket and yields each message.
+        """
+        if self._ws is None:
+            raise JmRpcError('Websocket is not initialized, if you are not using a context manager'
+                             'you have to await jmrpc.start_ws() manually')
+        async for msg in self._ws:
+            yield msg
+
+    async def ws_send(self, msg: str) -> None:
+        if self._ws is None:
+            raise JmRpcError('Websocket is not initialized, if you are not using a context manager'
+                             'you have to call jmrpc.start_ws() manually')
+        if not isinstance(msg, str):
+            raise TypeError(f'Expecting string, got {type(msg)}')
+        await self._ws.send_str(msg)
 
     def _cache_token(self, token: str) -> None:
         """
@@ -266,6 +289,7 @@ class JmRpc:
                                                  body,
                                                  **kwargs))
         self._cache_token(response.token)
+        await self.ws_send(response.token)
         return response
 
     async def unlock_wallet(self, wallet_name: str, pwd: str, **kwargs) -> UnlockWallet:
@@ -277,6 +301,7 @@ class JmRpc:
                                                  {'walletname': wallet_name},
                                                  **kwargs))
         self._cache_token(response.token)
+        await self.ws_send(response.token)
         return response
 
     async def lock_wallet(self, wallet_name: str, **kwargs) -> LockWallet:
@@ -321,16 +346,13 @@ class JmRpc:
         """
         Call `directsend` POST :class:`RpcMethod`
         """
-        response = await self._post(RpcMethod.DIRECT_SEND,
-                                    {'mixdepth': mixdepth,
-                                     'amount_sats': amount_sats,
-                                     'destination': destination},
-                                    {'walletname': wallet_name},
-                                    **kwargs
-                                    )
-        # TODO, remove this if/when JoinMarket server does it for us.
-        response['txinfo'] = loads(response['txinfo'])
-        return DirectSend(response)
+        return DirectSend(await self._post(RpcMethod.DIRECT_SEND,
+                                           {'mixdepth': mixdepth,
+                                            'amount_sats': amount_sats,
+                                            'destination': destination},
+                                           {'walletname': wallet_name},
+                                           **kwargs
+                                           ))
 
     async def do_coinjoin(self,
                           wallet_name: str,

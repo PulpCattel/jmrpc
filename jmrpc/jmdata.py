@@ -64,13 +64,11 @@ class UnlockWallet(JmResponse):
     Fields:
 
     * wallet_name: The filename for the wallet created on disk in `datadir/wallets`.
-    * already_loaded: False in case there is no currently unlocked wallet, and this wallet is unlocked successfully. True in case the same wallet is already unlocked, or another wallet is currently unlocked (note that this is not an error response).
     * token: The created JWT token.
     """
 
     wallet_name = StringType(required=True, deserialize_from='walletname')
-    already_loaded = BooleanType(required=True)
-    token = StringType(serialize_when_none=False)
+    token = StringType(required=True)
 
 
 class LockWallet(JmResponse):
