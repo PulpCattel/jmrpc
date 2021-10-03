@@ -1,6 +1,6 @@
 # Jmrpc (WIP)
 
-A simple and high-level JSON-RPC client for [JoinMarket](https://github.com/JoinMarket-Org/joinmarket-clientserver), for now mostly meant to test https://github.com/JoinMarket-Org/joinmarket-clientserver/pull/996.
+A simple, high-level and fully asynchronous JSON-RPC client for [JoinMarket](https://github.com/JoinMarket-Org/joinmarket-clientserver), for now mostly meant to test https://github.com/JoinMarket-Org/joinmarket-clientserver/pull/996.
 
 # Requirements
 
@@ -20,21 +20,21 @@ pip3 install -e .
 
 ```
 >>> from jmrpc.jmrpc import JmRpc
->>> with JmRpc() as jmrpc:
-...    response = jmrpc.list_wallets()
+>>> async with JmRpc() as jmrpc:
+...    response = await jmrpc.list_wallets()
 ```
-JoinMarket server uses HTTPS, and by default this library (for now) looks for cert.pem file in `/home/user/.joinmarket/ssl/cert.pem`.
+JoinMarket server uses HTTPS, and by default this library (for now) looks for cert.pem file in `/home/user/.joinmarket/ssl/`.
 
 For easier testing you may want to skip SSL cert verification, e.g.:
 
 ```
 >>> with JmRpc() as jmrpc:
-...    response = jmrpc.list_wallets(verify=False)
+...    response = await jmrpc.list_wallets(ssl=False)
 ```
 
-For more info see [here](https://docs.python-requests.org/en/latest/user/advanced/#client-side-certificates).
+For more info see [here](https://docs.aiohttp.org/en/stable/client_advanced.html#ssl-control-for-tcp-sockets).
 
-`response` is an [object representation](https://github.com/schematics/schematics) of the response content from JoinMarket.
+`response` is a [model representation](https://github.com/schematics/schematics) of the response content from JoinMarket.
 
 ```
 >>> response['wallets']
