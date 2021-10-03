@@ -123,7 +123,7 @@ class JmRpc:
         self._ws: Optional[ClientWebSocketResponse] = None
 
     async def __aenter__(self) -> 'JmRpc':
-        self._ws = await self._session.ws_connect('wss://127.0.0.1:28283')
+        await self.start_ws()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
