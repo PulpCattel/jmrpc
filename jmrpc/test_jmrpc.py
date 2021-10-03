@@ -1,58 +1,31 @@
 """
-Test JSON-RPC client against a real JoinMarket server. For now really basic
-and we manually have to delete `test_wallet.jmdat` each time.
+Test JSON-RPC client against a real JoinMarket server. For now really basic.
 """
 
-from jmrpc.jmdata import ListWallets, CreateWallet, LockWallet, \
-    UnlockWallet, DisplayWallet, GetAddress, ListUtxos, GetSession
+from pytest import mark
+
+from jmrpc.jmdata import ListWallets, Session
 
 
-def test_list_wallets(jmrpc):
-    response = jmrpc.list_wallets()
+@mark.asyncio
+async def test_jmrpc(jmrpc):
+    assert jmrpc.endpoint == 'https://127.0.0.1:28183'
+    assert jmrpc.id_count == 0
+    assert jmrpc.token is False
+
+
+@mark.require_server
+@mark.asyncio
+async def test_list_wallets(jmrpc):
+    response = await jmrpc.list_wallets()
     assert isinstance(response, ListWallets)
     assert isinstance(response.dict, dict)
     assert isinstance(response.wallets, list)
 
 
-def test_create_wallet(jmrpc):
-    # TODO: for now the test wallet has to be deleted manually
-    response = jmrpc.create_wallet('test_wallet.jmdat', 'password', 'sw')
-    assert isinstance(response, CreateWallet)
-    assert isinstance(response.dict, dict)
-    assert jmrpc.token is True
-
-
-def test_lock_wallet(jmrpc):
-    response = jmrpc.lock_wallet('test_wallet.jmdat')
-    assert isinstance(response, LockWallet)
-    assert isinstance(response.dict, dict)
-
-
-def test_unlock_wallet(jmrpc):
-    response = jmrpc.unlock_wallet('test_wallet.jmdat', 'password')
-    assert isinstance(response, UnlockWallet)
-    assert isinstance(response.dict, dict)
-
-
-def test_display_wallet(jmrpc):
-    response = jmrpc.display_wallet('test_wallet.jmdat')
-    assert isinstance(response, DisplayWallet)
-    assert isinstance(response.dict, dict)
-
-
-def test_get_address(jmrpc):
-    response = jmrpc.get_address('test_wallet.jmdat', 0)
-    assert isinstance(response, GetAddress)
-    assert isinstance(response.dict, dict)
-
-
-def test_list_utxos(jmrpc):
-    response = jmrpc.list_utxos('test_wallet.jmdat')
-    assert isinstance(response, ListUtxos)
-    assert isinstance(response.dict, dict)
-
-
-def test_get_session(jmrpc):
-    response = jmrpc.session()
-    assert isinstance(response, GetSession)
+@mark.require_server
+@mark.asyncio
+async def test_session(jmrpc):
+    response = await jmrpc.session()
+    assert isinstance(response, Session)
     assert isinstance(response.dict, dict)

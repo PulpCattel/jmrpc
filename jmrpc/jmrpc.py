@@ -1,17 +1,19 @@
 """
 A simple and high level JSON-RPC client library for JoinMarket
 """
+from asyncio import sleep
 from collections import namedtuple
 from enum import Enum
-from json import loads
 from logging import getLogger, DEBUG
+from ssl import create_default_context
 from typing import Any, Dict, Optional
 
-from requests import Session, Response
+from aiohttp import ClientSession, ClientResponse, TCPConnector
+from ujson import loads, dumps
 
-from jmrpc.jmdata import GetSession
 from jmrpc.jmdata import ListWallets, CreateWallet, LockWallet, \
     UnlockWallet, DisplayWallet, GetAddress, ListUtxos, DirectSend, DoCoinjoin
+from jmrpc.jmdata import Session
 
 HEADERS = {"User-Agent": "jmrpc",
            "Content-Type": "application/json",
@@ -32,6 +34,7 @@ class JmRpcErrorType(Enum):
     """
     Type of JoinMarket JSON-RPC error
     """
+
     NOT_AUTHORIZED = 'Invalid credentials.'
     NO_WALLET_FOUND = 'No wallet loaded.'
     BACKEND_NOT_READY = 'Backend daemon not available'
@@ -56,23 +59,24 @@ class RpcMethod(Enum):
     * **docoinjoin**: Initiate a coinjoin as taker
     * **session**: Check the status and liveness of the session
     * **maker-start**: Starts the yield generator/maker service for the given wallet
-    * **maker-stop**: Stops the yieldgenerator/maker service if currently running for the given wallet
+    * **maker-stop**: Stops the yield generator/maker service if currently running for the given wallet
     """
 
     _METHOD_DATA = namedtuple('_METHOD_DATA', ('route', 'name'))
+    _API_VERSION_STRING = "/api/v1"
 
-    LIST_WALLETS = _METHOD_DATA('/api/v1/wallet/all', 'listwallets')
-    CREATE_WALLET = _METHOD_DATA('/api/v1/wallet/create', 'createwallet')
-    UNLOCK_WALLET = _METHOD_DATA('/api/v1/wallet/{walletname}/unlock', 'unlockwallet')
-    LOCK_WALLET = _METHOD_DATA('/api/v1/wallet/{walletname}/lock', 'lockwallet')
-    DISPLAY_WALLET = _METHOD_DATA('/api/v1/wallet/{walletname}/display', 'displaywallet')
-    GET_ADDRESS = _METHOD_DATA('/api/v1/wallet/{walletname}/address/new/{mixdepth}', 'getaddress')
-    LIST_UTXOS = _METHOD_DATA('/api/v1/wallet/{walletname}/utxos', 'listutxos')
-    DIRECT_SEND = _METHOD_DATA('/api/v1/wallet/{walletname}/taker/direct-send', 'directsend')
-    DO_COINJOIN = _METHOD_DATA('/api/v1/wallet/{walletname}/taker/coinjoin', 'docoinjoin')
-    SESSION = _METHOD_DATA('/api/v1/session', 'session')
-    MAKER_START = _METHOD_DATA('/api/v1/wallet/{walletname}/maker/start', 'maker-start')
-    MAKER_STOP = _METHOD_DATA('/api/v1/wallet/{walletname}/maker/stop', 'maker-stop')
+    LIST_WALLETS = _METHOD_DATA(_API_VERSION_STRING + '/wallet/all', 'listwallets')
+    CREATE_WALLET = _METHOD_DATA(_API_VERSION_STRING + '/wallet/create', 'createwallet')
+    UNLOCK_WALLET = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/unlock', 'unlockwallet')
+    LOCK_WALLET = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/lock', 'lockwallet')
+    DISPLAY_WALLET = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/display', 'displaywallet')
+    GET_ADDRESS = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/address/new/{mixdepth}', 'getaddress')
+    LIST_UTXOS = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/utxos', 'listutxos')
+    DIRECT_SEND = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/taker/direct-send', 'directsend')
+    DO_COINJOIN = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/taker/coinjoin', 'docoinjoin')
+    SESSION = _METHOD_DATA(_API_VERSION_STRING + '/session', 'session')
+    MAKER_START = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/maker/start', 'maker-start')
+    MAKER_STOP = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/maker/stop', 'maker-stop')
 
     def __str__(self):
         return f'Name: {self.value.name}\nRoute: {self.value.route}'
@@ -84,8 +88,8 @@ class JmRpc:
 
     Can be used with context manager to cleanly close the session.
 
-    >>> with JmRpc() as jm:
-    ...     print(jm.session())
+    >>> async with JmRpc() as jmrpc:
+    ...     print(await jmrpc.session())
     ...
     {"session": false, "maker_running": false, "coinjoin_in_process": false, "wallet_name": "None"}
     """
@@ -93,33 +97,45 @@ class JmRpc:
     __slots__ = ('_id_count', '_session', '_endpoint')
 
     def __init__(self,
-                 session: Optional[Session] = None,
-                 endpoint: str = 'https://127.0.0.1:28183') -> None:
+                 session: Optional[ClientSession] = None,
+                 endpoint: str = 'https://127.0.0.1:28183',
+                 ssl_verify: str = '/home/user/.joinmarket/ssl') -> None:
         """
-        Initialize JSON-RPC client, if no `session` is provided, requests.Session() is used.
+        Initialize JSON-RPC client, if no `session` is provided, aiohttp.ClientSession() is used.
+
         If no `endpoint` is provided, JoinMarket default one is used.
+
+        `ssl_verify` should be a path that points to {cert, key}.pem directory,
+        by default uses JoinMarket default datadir.
         """
+
         self._id_count = 0
         if session:
             self._session = session
         else:
-            self._session = Session()
-            self._session.headers.update(HEADERS)
-            # SSL verification hardcoded here for now, or use a custom session
-            self._session.verify = '/home/user/.joinmarket/ssl/cert.pem'
+            ssl_context = create_default_context(cafile=f'{ssl_verify}/cert.pem')
+            ssl_context.load_cert_chain(f'{ssl_verify}/cert.pem',
+                                        f'{ssl_verify}/key.pem')
+            self._session = ClientSession(json_serialize=dumps,
+                                          headers=HEADERS,
+                                          connector=TCPConnector(ssl=ssl_context))
         self._endpoint = endpoint
 
-    def __enter__(self) -> 'JmRpc':
+    async def __aenter__(self) -> 'JmRpc':
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
 
-    def close(self) -> None:
+    async def close(self) -> None:
         """
-        Close the session.
+        Close the session and waits 250ms for graceful shutdown.
+
+        https://docs.aiohttp.org/en/stable/client_advanced.html#graceful-shutdown
         """
-        self._session.close()
+
+        await self._session.close()
+        await sleep(0.25)
 
     @staticmethod
     def _validate_method_type(method: RpcMethod) -> None:
@@ -176,25 +192,25 @@ class JmRpc:
             return self._endpoint + method.value.route
         return self._endpoint + method.value.route.format(**route_args)
 
-    def _handle_response(self, response: Response) -> Dict:
+    @staticmethod
+    async def _handle_response(response: ClientResponse) -> Dict:
         """
         Raise exception for any status code different than 200.
         Return JSON response.
         """
-        self._id_count += 1
-        if response.status_code != 200:
-            content = response.content.decode('utf-8')
+        if response.status != 200:
+            content = await response.text('utf-8')
             for member in JmRpcErrorType:
                 if content != member.value:
                     continue
-                raise JmRpcError(response.status_code, content)
+                raise JmRpcError(response.status, content)
             response.raise_for_status()
-        return response.json()
+        return await response.json(encoding='utf-8', loads=loads)
 
-    def _get(self,
-             method: RpcMethod,
-             route_args: Optional[Dict] = None,
-             **kwargs) -> Dict:
+    async def _get(self,
+                   method: RpcMethod,
+                   route_args: Optional[Dict] = None,
+                   **kwargs) -> Dict:
         """
         Perform GET request and return response.
 
@@ -203,15 +219,16 @@ class JmRpc:
         :param kwargs: Extra arguments for session.get()
         """
         self._validate_method_type(method)
-        with self._session.get(self._get_complete_url(method, route_args),
-                               **kwargs) as response:
-            return self._handle_response(response)
+        self._id_count += 1
+        async with self._session.get(self._get_complete_url(method, route_args),
+                                     **kwargs) as response:
+            return await self._handle_response(response)
 
-    def _post(self,
-              method: RpcMethod,
-              body: Dict,
-              route_args: Optional[Dict] = None,
-              **kwargs) -> Dict:
+    async def _post(self,
+                    method: RpcMethod,
+                    body: Dict,
+                    route_args: Optional[Dict] = None,
+                    **kwargs) -> Dict:
         """
         Perform POST request and return response converted into JSON.
 
@@ -221,150 +238,151 @@ class JmRpc:
         :param kwargs: Extra arguments for session.post()
         """
         self._validate_method_type(method)
-        with self._session.post(self._get_complete_url(method, route_args),
-                                json=self._build_payload(body),
-                                **kwargs) as response:
-            return self._handle_response(response)
+        self._id_count += 1
+        async with self._session.post(self._get_complete_url(method, route_args),
+                                      json=self._build_payload(body),
+                                      **kwargs) as response:
+            return await self._handle_response(response)
 
-    def list_wallets(self, **kwargs) -> ListWallets:
+    async def list_wallets(self, **kwargs) -> ListWallets:
         """
         Call `listwallets` :class:`RpcMethod`
         """
-        return ListWallets(self._get(RpcMethod.LIST_WALLETS,
-                                     **kwargs))
+        return ListWallets(await self._get(RpcMethod.LIST_WALLETS,
+                                           **kwargs))
 
-    def create_wallet(self,
-                      wallet_name: str,
-                      password: str,
-                      wallet_type: str,
-                      **kwargs) -> CreateWallet:
+    async def create_wallet(self,
+                            wallet_name: str,
+                            password: str,
+                            wallet_type: str,
+                            **kwargs) -> CreateWallet:
         """
         Call `createwallet` :class:`RpcMethod`
         """
         body = {'walletname': wallet_name,
                 'password': password,
                 'wallettype': wallet_type}
-        response = CreateWallet(self._post(RpcMethod.CREATE_WALLET,
-                                           body,
-                                           **kwargs))
+        response = CreateWallet(await self._post(RpcMethod.CREATE_WALLET,
+                                                 body,
+                                                 **kwargs))
         self._cache_token(response.token)
         return response
 
-    def unlock_wallet(self, wallet_name: str, pwd: str, **kwargs) -> UnlockWallet:
+    async def unlock_wallet(self, wallet_name: str, pwd: str, **kwargs) -> UnlockWallet:
         """
         Call `unlockwallet` POST :class:`RpcMethod`
         """
-        response = UnlockWallet(self._post(RpcMethod.UNLOCK_WALLET,
-                                           {'password': pwd},
-                                           {'walletname': wallet_name},
-                                           **kwargs))
+        response = UnlockWallet(await self._post(RpcMethod.UNLOCK_WALLET,
+                                                 {'password': pwd},
+                                                 {'walletname': wallet_name},
+                                                 **kwargs))
         self._cache_token(response.token)
         return response
 
-    def lock_wallet(self, wallet_name: str, **kwargs) -> LockWallet:
+    async def lock_wallet(self, wallet_name: str, **kwargs) -> LockWallet:
         """
         Call `lockwallet` GET :class:`RpcMethod`
         """
-        return LockWallet(self._get(RpcMethod.LOCK_WALLET,
-                                    {'walletname': wallet_name},
-                                    **kwargs))
+        return LockWallet(await self._get(RpcMethod.LOCK_WALLET,
+                                          {'walletname': wallet_name},
+                                          **kwargs))
 
-    def display_wallet(self, wallet_name: str, **kwargs) -> DisplayWallet:
+    async def display_wallet(self, wallet_name: str, **kwargs) -> DisplayWallet:
         """
         Call `displaywallet` GET :class:`RpcMethod`
         """
-        return DisplayWallet(self._get(RpcMethod.DISPLAY_WALLET,
-                                       {'walletname': wallet_name},
-                                       **kwargs))
+        return DisplayWallet(await self._get(RpcMethod.DISPLAY_WALLET,
+                                             {'walletname': wallet_name},
+                                             **kwargs))
 
-    def get_address(self, wallet_name: str, mixdepth: str, **kwargs) -> GetAddress:
+    async def get_address(self, wallet_name: str, mixdepth: str, **kwargs) -> GetAddress:
         """
         Call `getaddress` GET :class:`RpcMethod`
         """
-        return GetAddress(self._get(RpcMethod.GET_ADDRESS,
-                                    {'walletname': wallet_name,
-                                     'mixdepth': mixdepth},
-                                    **kwargs))
+        return GetAddress(await self._get(RpcMethod.GET_ADDRESS,
+                                          {'walletname': wallet_name,
+                                           'mixdepth': mixdepth},
+                                          **kwargs))
 
-    def list_utxos(self, wallet_name: str, **kwargs) -> ListUtxos:
+    async def list_utxos(self, wallet_name: str, **kwargs) -> ListUtxos:
         """
         Call `listutxos` GET :class:`RpcMethod`
         """
-        return ListUtxos(self._get(RpcMethod.LIST_UTXOS,
-                                   {'walletname': wallet_name},
-                                   **kwargs))
+        return ListUtxos(await self._get(RpcMethod.LIST_UTXOS,
+                                         {'walletname': wallet_name},
+                                         **kwargs))
 
-    def direct_send(self,
-                    wallet_name: str,
-                    mixdepth: str,
-                    amount_sats: int,
-                    destination: str,
-                    **kwargs) -> DirectSend:
+    async def direct_send(self,
+                          wallet_name: str,
+                          mixdepth: str,
+                          amount_sats: int,
+                          destination: str,
+                          **kwargs) -> DirectSend:
         """
         Call `directsend` POST :class:`RpcMethod`
         """
-        response = self._post(RpcMethod.DIRECT_SEND,
-                              {'mixdepth': mixdepth,
-                               'amount_sats': amount_sats,
-                               'destination': destination},
-                              {'walletname': wallet_name},
-                              **kwargs
-                              )
+        response = await self._post(RpcMethod.DIRECT_SEND,
+                                    {'mixdepth': mixdepth,
+                                     'amount_sats': amount_sats,
+                                     'destination': destination},
+                                    {'walletname': wallet_name},
+                                    **kwargs
+                                    )
         # TODO, remove this if/when JoinMarket server does it for us.
         response['txinfo'] = loads(response['txinfo'])
         return DirectSend(response)
 
-    def do_coinjoin(self,
-                    wallet_name: str,
-                    mixdepth: str,
-                    amount: int,
-                    counterparties: int,
-                    destination: str,
-                    **kwargs) -> DoCoinjoin:
+    async def do_coinjoin(self,
+                          wallet_name: str,
+                          mixdepth: str,
+                          amount: int,
+                          counterparties: int,
+                          destination: str,
+                          **kwargs) -> DoCoinjoin:
         """
         Call `docoinjoin` POST :class:`RpcMethod`
         """
-        return DoCoinjoin(self._post(RpcMethod.DO_COINJOIN,
-                                     {'mixdepth': mixdepth,
-                                      'amount': amount,
-                                      'counterparties': counterparties,
-                                      'destination': destination},
-                                     {'walletname': wallet_name},
-                                     **kwargs
-                                     ))
+        return DoCoinjoin(await self._post(RpcMethod.DO_COINJOIN,
+                                           {'mixdepth': mixdepth,
+                                            'amount': amount,
+                                            'counterparties': counterparties,
+                                            'destination': destination},
+                                           {'walletname': wallet_name},
+                                           **kwargs
+                                           ))
 
-    def session(self, **kwargs) -> GetSession:
+    async def session(self, **kwargs) -> Session:
         """
         Call `session` GET :class:`RpcMethod`
         """
-        return GetSession(self._get(RpcMethod.SESSION,
-                                    **kwargs))
+        return Session(await self._get(RpcMethod.SESSION,
+                                       **kwargs))
 
-    def maker_start(self,
-                    wallet_name: str,
-                    tx_fee: int,
-                    cjfee_a: int,
-                    cjfee_r: str,
-                    order_type: str,
-                    min_size: str,
-                    **kwargs) -> None:
+    async def maker_start(self,
+                          wallet_name: str,
+                          tx_fee: int,
+                          cjfee_a: int,
+                          cjfee_r: str,
+                          order_type: str,
+                          min_size: str,
+                          **kwargs) -> None:
         """
         Call `maker-start` POST :class:`RpcMethod`
         """
-        self._post(RpcMethod.MAKER_START,
-                   {'txfee': tx_fee,
-                    'cjfee_a': cjfee_a,
-                    'cjfee_r': cjfee_r,
-                    'ordertype': order_type,
-                    'minsize': min_size},
-                   {'walletname': wallet_name},
-                   **kwargs
-                   )
+        await self._post(RpcMethod.MAKER_START,
+                         {'txfee': tx_fee,
+                          'cjfee_a': cjfee_a,
+                          'cjfee_r': cjfee_r,
+                          'ordertype': order_type,
+                          'minsize': min_size},
+                         {'walletname': wallet_name},
+                         **kwargs
+                         )
 
-    def maker_stop(self, wallet_name: str, **kwargs) -> None:
+    async def maker_stop(self, wallet_name: str, **kwargs) -> None:
         """
         Call `maker-stop` GET :class:`RpcMethod`
         """
-        self._get(RpcMethod.MAKER_STOP,
-                  {'walletname': wallet_name},
-                  **kwargs)
+        await self._get(RpcMethod.MAKER_STOP,
+                        {'walletname': wallet_name},
+                        **kwargs)

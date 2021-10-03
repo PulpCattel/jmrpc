@@ -1,2 +1,12 @@
 [build-system]
 requires = ["setuptools", "wheel"]
+
+[tool.pytest.ini_options]
+markers = [
+    "require_server: marks test that require a running JoinMarket server daemon (deselect with -m 'not require_server')",
+    "developing: marks test to run indipendentely while developing",
+]
+filterwarnings = [
+    "error",
+    "ignore::schematics.deprecated.SchematicsDeprecationWarning",
+]

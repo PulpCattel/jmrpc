@@ -1,11 +1,11 @@
 """
 Objects for JoinMarket JSON-RPC response content
 """
-from json import dumps
 from typing import Dict
 
 from schematics.models import Model
 from schematics.types import StringType, ListType, IntType, BooleanType, ModelType, FloatType
+from ujson import dumps
 
 
 class JmResponse(Model):
@@ -21,6 +21,9 @@ class JmResponse(Model):
 
     @property
     def dict(self) -> Dict:
+        """
+        Return dict representation of the model.
+        """
         return self.to_native()
 
 
@@ -235,7 +238,7 @@ class DoCoinjoin(JmResponse):
     coinjoin_started = BooleanType(required=True)
 
 
-class GetSession(JmResponse):
+class Session(JmResponse):
     """
     `session` :class:`RpcMethod` response content.
 
