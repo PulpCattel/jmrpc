@@ -196,8 +196,17 @@ class JmRpc:
         Server maintains the token for as long as the daemon is active (i.e.
         no expiry currently implemented), or until the user switches
         to a new wallet.
+
+        This also takes care of the websocket, if it's not open it starts it
+        and send token for authentication.
         """
         self._session.headers.update({'Authorization': f'Bearer {token}'})
+        try:
+            await self.ws_send(token)
+        except UninitializedWebsocket:
+            # Websocket started automatically
+            await self.start_ws()
+            await self.ws_send(token)
 
     def _build_payload(self, body: Dict) -> Dict[str, Any]:
         """
@@ -221,14 +230,14 @@ class JmRpc:
         Raise exception for any status code different than 200.
         Return JSON response.
         """
+        content = await response.json(encoding='utf-8', loads=loads)
         if response.status != 200:
-            content = await response.text('utf-8')
             for member in JmRpcErrorType:
-                if content != member.value:
+                if content['message'] != member.value:
                     continue
                 raise JmRpcError(response.status, content)
             response.raise_for_status()
-        return await response.json(encoding='utf-8', loads=loads)
+        return content
 
     async def _get(self,
                    method: RpcMethod,
@@ -288,8 +297,7 @@ class JmRpc:
         response = CreateWallet(await self._post(RpcMethod.CREATE_WALLET,
                                                  body,
                                                  **kwargs))
-        self._cache_token(response.token)
-        await self.ws_send(response.token)
+        await self._cache_token(response.token)
         return response
 
     async def unlock_wallet(self, wallet_name: str, pwd: str, **kwargs) -> UnlockWallet:
@@ -300,8 +308,7 @@ class JmRpc:
                                                  {'password': pwd},
                                                  {'walletname': wallet_name},
                                                  **kwargs))
-        self._cache_token(response.token)
-        await self.ws_send(response.token)
+        await self._cache_token(response.token)
         return response
 
     async def lock_wallet(self, wallet_name: str, **kwargs) -> LockWallet:
@@ -320,7 +327,7 @@ class JmRpc:
                                              {'walletname': wallet_name},
                                              **kwargs))
 
-    async def get_address(self, wallet_name: str, mixdepth: str, **kwargs) -> GetAddress:
+    async def get_address(self, wallet_name: str, mixdepth: int, **kwargs) -> GetAddress:
         """
         Call `getaddress` GET :class:`RpcMethod`
         """
@@ -360,18 +367,18 @@ class JmRpc:
                           amount: int,
                           counterparties: int,
                           destination: str,
-                          **kwargs) -> DoCoinjoin:
+                          **kwargs) -> None:
         """
         Call `docoinjoin` POST :class:`RpcMethod`
         """
-        return DoCoinjoin(await self._post(RpcMethod.DO_COINJOIN,
-                                           {'mixdepth': mixdepth,
-                                            'amount': amount,
-                                            'counterparties': counterparties,
-                                            'destination': destination},
-                                           {'walletname': wallet_name},
-                                           **kwargs
-                                           ))
+        await self._post(RpcMethod.DO_COINJOIN,
+                         {'mixdepth': mixdepth,
+                          'amount_sats': amount,
+                          'counterparties': counterparties,
+                          'destination': destination},
+                         {'walletname': wallet_name},
+                         **kwargs
+                         )
 
     async def session(self, **kwargs) -> Session:
         """
@@ -384,9 +391,9 @@ class JmRpc:
                           wallet_name: str,
                           tx_fee: int,
                           cjfee_a: int,
-                          cjfee_r: str,
+                          cjfee_r: float,
                           order_type: str,
-                          min_size: str,
+                          min_size: int,
                           **kwargs) -> None:
         """
         Call `maker-start` POST :class:`RpcMethod`

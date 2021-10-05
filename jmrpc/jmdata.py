@@ -224,18 +224,6 @@ class DirectSend(JmResponse):
     tx_info = ModelType(Tx, required=True, deserialize_from='txinfo')
 
 
-class DoCoinjoin(JmResponse):
-    """
-    `docoinjoin` :class:`RpcMethod` response content.
-
-    Fields:
-
-    * coinjoin_started: This only indicates start OK, not completion.
-    """
-
-    coinjoin_started = BooleanType(required=True)
-
-
 class Session(JmResponse):
     """
     `session` :class:`RpcMethod` response content.
