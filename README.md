@@ -1,6 +1,6 @@
 # Jmrpc (WIP)
 
-A simple, high-level and fully asynchronous JSON-RPC client for [JoinMarket](https://github.com/JoinMarket-Org/joinmarket-clientserver), for now mostly meant to test https://github.com/JoinMarket-Org/joinmarket-clientserver/pull/996.
+A simple, high-level, and fully asynchronous JSON-RPC client for [JoinMarket](https://github.com/JoinMarket-Org/joinmarket-clientserver), for now mostly meant to test https://github.com/JoinMarket-Org/joinmarket-clientserver/pull/996.
 
 # Requirements
 
@@ -18,29 +18,59 @@ pip3 install -e .
 
 # Usage
 
+```python3
+from asyncio import run
+from jmrpc import JmRpc
+
+async def main() -> None:
+    async with JmRpc() as jmrpc:
+        response = await jmrpc.list_wallets()
+
+if __name__ == '__main__':
+    run(main())
 ```
->>> from jmrpc.jmrpc import JmRpc
->>> async with JmRpc() as jmrpc:
-...    response = await jmrpc.list_wallets()
-```
+
 JoinMarket server uses HTTPS, and by default this library (for now) looks for cert.pem file in `/home/user/.joinmarket/ssl/`.
 
 For easier testing you may want to skip SSL cert verification, e.g.:
 
-```
->>> with JmRpc() as jmrpc:
-...    response = await jmrpc.list_wallets(ssl=False)
+```python3
+response = await jmrpc.list_wallets(ssl=False)
 ```
 
 For more info see [here](https://docs.aiohttp.org/en/stable/client_advanced.html#ssl-control-for-tcp-sockets).
 
 `response` is a [model representation](https://github.com/schematics/schematics) of the response content from JoinMarket.
 
+```python3
+print(response['wallets'])
+print(response.wallets)
+print(response.dict)
 ```
->>> response['wallets']
+
+Output:
+
+```bash
 ['wallet.jmdat', 'wallet1.jmdat', 'wallet2.jmdat']
->>> response.wallets
 ['wallet.jmdat', 'wallet1.jmdat', 'wallet2.jmdat']
->>> response.dict
 {'wallets': ['wallet.jmdat', 'wallet1.jmdat', 'wallet2.jmdat']}
+```
+
+JoinMarket offers a websocket, which serves notifications to all authenticated clients.
+
+```python3
+from asyncio import run
+from jmrpc import JmRpc
+
+async def main() -> None:
+    # Websocket automatically started by the context manager.
+    async with JmRpc() as jmrpc:
+        # Unlock and Create both automatically authenticate to the websocket.
+        await jmrpc.unlock_wallet('wallet.jmdat', 'password')
+        # Now we can wait for notifications.
+        async for msg in jmrpc.ws_read():
+            print(msg)
+
+if __name__ == '__main__':
+    run(main())
 ```
