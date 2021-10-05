@@ -217,7 +217,7 @@ class JmRpc:
         to a new wallet.
 
         This also takes care of the websocket, if it's not open it starts it
-        and send token for authentication.
+        and sends token for authentication.
         """
         self._session.headers.update({'Authorization': f'Bearer {token}'})
         try:
@@ -270,7 +270,6 @@ class JmRpc:
         :param kwargs: Extra arguments for session.get()
         """
         self._validate_method_type(method)
-        self._id_count += 1
         async with self._session.get(self._get_complete_url(method, route_args),
                                      **kwargs) as response:
             return await self._handle_response(response)
@@ -289,9 +288,10 @@ class JmRpc:
         :param kwargs: Extra arguments for session.post()
         """
         self._validate_method_type(method)
+        payload = self._build_payload(body)
         self._id_count += 1
         async with self._session.post(self._get_complete_url(method, route_args),
-                                      json=self._build_payload(body),
+                                      json=payload,
                                       **kwargs) as response:
             return await self._handle_response(response)
 
