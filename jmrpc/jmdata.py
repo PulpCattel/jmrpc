@@ -13,6 +13,12 @@ class JmResponse(Model):
     Base object for data returned by JoinMarket server.
     """
 
+    def __init__(self, *args, **kwargs):
+        """
+        Set partial to False so that any required key missing throws an exception.
+        """
+        super().__init__(*args, **kwargs, partial=False)
+
     def __getitem__(self, item):
         return getattr(self, item)
 

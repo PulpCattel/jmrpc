@@ -12,7 +12,7 @@ from aiohttp import ClientSession, ClientResponse, TCPConnector, ClientWebSocket
 from ujson import loads, dumps
 
 from jmrpc.jmdata import ListWallets, CreateWallet, LockWallet, \
-    UnlockWallet, DisplayWallet, GetAddress, ListUtxos, DirectSend, DoCoinjoin
+    UnlockWallet, DisplayWallet, GetAddress, ListUtxos, DirectSend
 from jmrpc.jmdata import Session
 
 HEADERS = {"User-Agent": "jmrpc",
@@ -30,6 +30,13 @@ class JmRpcError(Exception):
     """
 
 
+class UninitializedWebsocket(JmRpcError):
+    """
+    Thrown when trying to use a websocket without first
+    starting it.
+    """
+
+
 class JmRpcErrorType(Enum):
     """
     Type of JoinMarket JSON-RPC error
@@ -41,6 +48,9 @@ class JmRpcErrorType(Enum):
     INVALID_REQUEST_FORMAT = 'Invalid request format.'
     SERVICE_ALREADY_STARTED = 'Service already started.'
     WALLET_ALREADY_UNLOCKED = 'Wallet already unlocked.'
+    WALLET_ALREADY_EXISTS = 'Wallet file cannot be overwritten.'
+    LOCK_EXISTS = 'Wallet cannot be created/opened, it is locked.'
+    CONFIG_NOT_PRESENT = 'Action cannot be performed, config vars are not set.'
     SERVICE_NOT_STARTED = 'Service cannot be stopped as it is not running.'
 
 
@@ -113,12 +123,10 @@ class JmRpc:
         if session:
             self._session = session
         else:
-            ssl_context = create_default_context(cafile=f'{ssl_verify}/cert.pem')
-            ssl_context.load_cert_chain(f'{ssl_verify}/cert.pem',
-                                        f'{ssl_verify}/key.pem')
+            ssl = create_default_context(cafile=f'{ssl_verify}/cert.pem')
             self._session = ClientSession(json_serialize=dumps,
                                           headers=HEADERS,
-                                          connector=TCPConnector(ssl=ssl_context))
+                                          connector=TCPConnector(ssl=ssl))
         self._endpoint = endpoint
         self._ws: Optional[ClientWebSocketResponse] = None
 
@@ -153,7 +161,7 @@ class JmRpc:
     @property
     def id_count(self) -> int:
         """
-        Return current :class:`JmRpc` ID count.
+        :return: current :class:`JmRpc` ID count.
         """
         return self._id_count
 
@@ -171,25 +179,36 @@ class JmRpc:
         """
         return 'Authorization' in self._session.headers.keys()
 
+    @property
+    def websocket(self) -> bool:
+        return self._ws is not None
+
+    def _check_ws(self) -> None:
+        """
+        Assure a websocket is being instantiated.
+        """
+        if self.websocket is False:
+            raise UninitializedWebsocket('Websocket is not initialized, if you are not using a context manager '
+                                         'you have to await start_ws() coroutine manually')
+
     async def ws_read(self) -> AsyncGenerator[Any, Any]:
         """
         Read from websocket and yields each message.
         """
-        if self._ws is None:
-            raise JmRpcError('Websocket is not initialized, if you are not using a context manager'
-                             'you have to await jmrpc.start_ws() manually')
+        self._check_ws()
         async for msg in self._ws:
             yield msg
 
     async def ws_send(self, msg: str) -> None:
-        if self._ws is None:
-            raise JmRpcError('Websocket is not initialized, if you are not using a context manager'
-                             'you have to call jmrpc.start_ws() manually')
+        """
+        Send to websocket.
+        """
+        self._check_ws()
         if not isinstance(msg, str):
-            raise TypeError(f'Expecting string, got {type(msg)}')
+            raise TypeError(f'Expecting string, got {type(msg)} instead')
         await self._ws.send_str(msg)
 
-    def _cache_token(self, token: str) -> None:
+    async def _cache_token(self, token: str) -> None:
         """
         Cache token for the session.
 
