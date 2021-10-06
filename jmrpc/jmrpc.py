@@ -15,6 +15,7 @@ from jmrpc.jmdata import ListWallets, CreateWallet, LockWallet, \
     UnlockWallet, DisplayWallet, GetAddress, ListUtxos, DirectSend
 from jmrpc.jmdata import Session
 
+_API_VERSION_STRING = "/api/v1"
 HEADERS = {"User-Agent": "jmrpc",
            "Content-Type": "application/json",
            "Accept": "application/json"}
@@ -73,20 +74,19 @@ class RpcMethod(Enum):
     """
 
     _METHOD_DATA = namedtuple('_METHOD_DATA', ('route', 'name'))
-    _API_VERSION_STRING = "/api/v1"
 
-    LIST_WALLETS = _METHOD_DATA(_API_VERSION_STRING + '/wallet/all', 'listwallets')
-    CREATE_WALLET = _METHOD_DATA(_API_VERSION_STRING + '/wallet/create', 'createwallet')
-    UNLOCK_WALLET = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/unlock', 'unlockwallet')
-    LOCK_WALLET = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/lock', 'lockwallet')
-    DISPLAY_WALLET = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/display', 'displaywallet')
-    GET_ADDRESS = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/address/new/{mixdepth}', 'getaddress')
-    LIST_UTXOS = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/utxos', 'listutxos')
-    DIRECT_SEND = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/taker/direct-send', 'directsend')
-    DO_COINJOIN = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/taker/coinjoin', 'docoinjoin')
-    SESSION = _METHOD_DATA(_API_VERSION_STRING + '/session', 'session')
-    MAKER_START = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/maker/start', 'maker-start')
-    MAKER_STOP = _METHOD_DATA(_API_VERSION_STRING + '/wallet/{walletname}/maker/stop', 'maker-stop')
+    LIST_WALLETS = _METHOD_DATA('/wallet/all', 'listwallets')
+    CREATE_WALLET = _METHOD_DATA('/wallet/create', 'createwallet')
+    UNLOCK_WALLET = _METHOD_DATA('/wallet/{walletname}/unlock', 'unlockwallet')
+    LOCK_WALLET = _METHOD_DATA('/wallet/{walletname}/lock', 'lockwallet')
+    DISPLAY_WALLET = _METHOD_DATA('/wallet/{walletname}/display', 'displaywallet')
+    GET_ADDRESS = _METHOD_DATA('/wallet/{walletname}/address/new/{mixdepth}', 'getaddress')
+    LIST_UTXOS = _METHOD_DATA('/wallet/{walletname}/utxos', 'listutxos')
+    DIRECT_SEND = _METHOD_DATA('/wallet/{walletname}/taker/direct-send', 'directsend')
+    DO_COINJOIN = _METHOD_DATA('/wallet/{walletname}/taker/coinjoin', 'docoinjoin')
+    SESSION = _METHOD_DATA('/session', 'session')
+    MAKER_START = _METHOD_DATA('/wallet/{walletname}/maker/start', 'maker-start')
+    MAKER_STOP = _METHOD_DATA('/wallet/{walletname}/maker/stop', 'maker-stop')
 
     def __str__(self):
         return f'Name: {self.value.name}\nRoute: {self.value.route}'
@@ -239,9 +239,9 @@ class JmRpc:
         """
         Given a :class:`RpcMethod` return complete url for RPC request
         """
-        if route_args is None:
-            return self._endpoint + method.value.route
-        return self._endpoint + method.value.route.format(**route_args)
+        partial_url = self._endpoint + _API_VERSION_STRING
+        return partial_url + (method.value.route if route_args is None
+                              else method.value.route.format(**route_args))
 
     @staticmethod
     async def _handle_response(response: ClientResponse) -> Dict:
