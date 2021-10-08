@@ -63,13 +63,16 @@ from asyncio import run
 from jmrpc import JmRpc
 
 async def main() -> None:
-    # Websocket automatically started by the context manager.
+    # Websocket automatically connected when using a context manager.
     async with JmRpc() as jmrpc:
         # Unlock and Create both automatically authenticate to the websocket.
         await jmrpc.unlock_wallet('wallet.jmdat', 'password')
         # Now we can wait for notifications.
         async for msg in jmrpc.ws_read():
+            # Like the HTTP response, `msg` here is an object representation
+            # of the data read from the websocket.
             print(msg)
+            print(msg.dict)
 
 if __name__ == '__main__':
     run(main())
