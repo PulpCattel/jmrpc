@@ -6,13 +6,13 @@ from collections import namedtuple
 from enum import Enum
 from logging import getLogger, DEBUG
 from ssl import create_default_context
-from typing import Any, Dict, Optional, AsyncGenerator
+from typing import Any, Dict, Optional, AsyncGenerator, Union
 
-from aiohttp import ClientSession, ClientResponse, TCPConnector, ClientWebSocketResponse, ClientTimeout
+from aiohttp import ClientSession, ClientResponse, TCPConnector, ClientWebSocketResponse, ClientTimeout, WSMsgType
 from ujson import loads, dumps
 
 from jmrpc.jmdata import ListWallets, CreateWallet, LockWallet, \
-    UnlockWallet, DisplayWallet, GetAddress, ListUtxos, DirectSend, ConfigGet
+    UnlockWallet, DisplayWallet, GetAddress, ListUtxos, DirectSend, ConfigGet, CoinjoinState, Transaction
 from jmrpc.jmdata import Session
 
 _API_VERSION_STRING = "/api/v1"
@@ -197,13 +197,21 @@ class JmRpc:
             raise UninitializedWebsocket('Websocket is not initialized, if you are not using a context manager '
                                          'you have to await start_ws() coroutine manually')
 
-    async def ws_read(self) -> AsyncGenerator[Any, Any]:
+    async def ws_read(self) -> AsyncGenerator[Union[CoinjoinState, Transaction], Any]:
         """
-        Read from websocket and yields each message.
+        Read from websocket and yields each message's model representation.
         """
         self._check_ws()
         async for msg in self._ws:
-            yield msg
+            if msg.type == WSMsgType.TEXT:
+                if 'coinjoin_state' in msg.data:
+                    yield CoinjoinState(loads(msg.data))
+                # Only two notification type sent by JoinMarket server for now
+                else:
+                    yield Transaction(loads(msg.data))
+            else:
+                # TODO: handle other possible message types
+                yield msg
 
     async def ws_send(self, msg: str) -> None:
         """
@@ -371,7 +379,7 @@ class JmRpc:
 
     async def direct_send(self,
                           wallet_name: str,
-                          mixdepth: str,
+                          mixdepth: int,
                           amount_sats: int,
                           destination: str,
                           **kwargs) -> DirectSend:
@@ -388,7 +396,7 @@ class JmRpc:
 
     async def do_coinjoin(self,
                           wallet_name: str,
-                          mixdepth: str,
+                          mixdepth: int,
                           amount: int,
                           counterparties: int,
                           destination: str,

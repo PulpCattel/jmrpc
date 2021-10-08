@@ -207,7 +207,7 @@ class Output(JmResponse):
 
 class Tx(JmResponse):
     """
-    Represent a transaction as returned by `directsend` :class:`RpcMethod`.
+    Represent a transaction as returned by `directsend` :class:`RpcMethod` or by the transaction websocket event.
     """
 
     hex = StringType(required=True)
@@ -254,3 +254,23 @@ class ConfigGet(JmResponse):
     """
 
     config_value = StringType(required=True, deserialize_from='configvalue')
+
+
+class CoinjoinState(JmResponse):
+    """
+    Websocket notification sent when the backend switches from doing nothing,
+    to running a coinjoin as taker over the messaging channels,
+    or to running as a yield generator, or stopping either of these.
+    """
+
+    coinjoin_state = IntType(required=True)
+
+
+class Transaction(JmResponse):
+    """
+    Websocket notification sent when a transaction is seen
+    for the first time in the Joinmarket wallet.
+    """
+
+    txid = StringType(required=True)
+    tx_details = ModelType(Tx, required=True, deserialize_from='txdetails')
