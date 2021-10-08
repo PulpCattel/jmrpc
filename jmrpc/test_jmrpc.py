@@ -12,7 +12,7 @@ async def test_jmrpc(jmrpc):
     assert jmrpc.endpoint == 'https://127.0.0.1:28183'
     assert jmrpc.id_count == 0
     assert jmrpc.token is False
-    # Context manager automatically start websocket
+    # Context manager automatically starts the websocket
     assert jmrpc.websocket is True
 
 

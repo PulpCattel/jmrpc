@@ -8,11 +8,11 @@ from logging import getLogger, DEBUG
 from ssl import create_default_context
 from typing import Any, Dict, Optional, AsyncGenerator
 
-from aiohttp import ClientSession, ClientResponse, TCPConnector, ClientWebSocketResponse
+from aiohttp import ClientSession, ClientResponse, TCPConnector, ClientWebSocketResponse, ClientTimeout
 from ujson import loads, dumps
 
 from jmrpc.jmdata import ListWallets, CreateWallet, LockWallet, \
-    UnlockWallet, DisplayWallet, GetAddress, ListUtxos, DirectSend
+    UnlockWallet, DisplayWallet, GetAddress, ListUtxos, DirectSend, ConfigGet
 from jmrpc.jmdata import Session
 
 _API_VERSION_STRING = "/api/v1"
@@ -53,6 +53,7 @@ class JmRpcErrorType(Enum):
     LOCK_EXISTS = 'Wallet cannot be created/opened, it is locked.'
     CONFIG_NOT_PRESENT = 'Action cannot be performed, config vars are not set.'
     SERVICE_NOT_STARTED = 'Service cannot be stopped as it is not running.'
+    TRANSACTION_FAILED = 'Transaction failed to broadcast.'
 
 
 class RpcMethod(Enum):
@@ -71,6 +72,8 @@ class RpcMethod(Enum):
     * **session**: Check the status and liveness of the session
     * **maker-start**: Starts the yield generator/maker service for the given wallet
     * **maker-stop**: Stops the yield generator/maker service if currently running for the given wallet
+    * **configset**: Change a config variable (for the duration of this backend daemon process instance)
+    * **configget**: Get the value of a specific config setting. Note values are always returned as string.
     """
 
     _METHOD_DATA = namedtuple('_METHOD_DATA', ('route', 'name'))
@@ -87,6 +90,8 @@ class RpcMethod(Enum):
     SESSION = _METHOD_DATA('/session', 'session')
     MAKER_START = _METHOD_DATA('/wallet/{walletname}/maker/start', 'maker-start')
     MAKER_STOP = _METHOD_DATA('/wallet/{walletname}/maker/stop', 'maker-stop')
+    CONFIG_SET = _METHOD_DATA('/wallet/{walletname}/configset', 'configset')
+    CONFIG_GET = _METHOD_DATA('/wallet/{walletname}/configget', 'configget')
 
     def __str__(self):
         return f'Name: {self.value.name}\nRoute: {self.value.route}'
@@ -126,7 +131,8 @@ class JmRpc:
             ssl = create_default_context(cafile=f'{ssl_verify}/cert.pem')
             self._session = ClientSession(json_serialize=dumps,
                                           headers=HEADERS,
-                                          connector=TCPConnector(ssl=ssl))
+                                          connector=TCPConnector(ssl=ssl),
+                                          timeout=ClientTimeout(total=15))
         self._endpoint = endpoint
         self._ws: Optional[ClientWebSocketResponse] = None
 
@@ -434,3 +440,22 @@ class JmRpc:
         await self._get(RpcMethod.MAKER_STOP,
                         {'walletname': wallet_name},
                         **kwargs)
+
+    async def config_set(self, wallet_name: str, section: str, field: str, value: str) -> None:
+        """
+        Call `configset` POST :class:`RpcMethod`
+        """
+        await self._post(RpcMethod.CONFIG_SET,
+                         {'section': section,
+                          'field': field,
+                          'value': value},
+                         {'walletname': wallet_name})
+
+    async def config_get(self, wallet_name: str, section: str, field: str) -> ConfigGet:
+        """
+        Call `configget` GET :class:`RpcMethod`
+        """
+        return ConfigGet(await self._post(RpcMethod.CONFIG_GET,
+                                          {'section': section,
+                                           'field': field},
+                                          {'walletname': wallet_name}))

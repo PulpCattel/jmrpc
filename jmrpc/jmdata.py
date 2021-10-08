@@ -246,3 +246,11 @@ class Session(JmResponse):
     maker_running = BooleanType(required=True)
     coinjoin_in_process = BooleanType(required=True)
     wallet_name = StringType(required=True)
+
+
+class ConfigGet(JmResponse):
+    """
+    `configget` :class:`RpcMethod` response content.
+    """
+
+    config_value = StringType(required=True, deserialize_from='configvalue')
