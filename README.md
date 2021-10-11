@@ -1,11 +1,11 @@
 # Jmrpc (WIP)
 
-A simple, high-level, and fully asynchronous JSON-RPC client for [JoinMarket](https://github.com/JoinMarket-Org/joinmarket-clientserver), for now mostly meant to test https://github.com/JoinMarket-Org/joinmarket-clientserver/pull/996.
+A simple, high-level, and fully asynchronous JSON-RPC client library for [JoinMarket](https://github.com/JoinMarket-Org/joinmarket-clientserver).
 
 # Requirements
 
-* This JoinMarket [branch](https://github.com/abhishek0405/joinmarket-clientserver/tree/rpc-api-2).
-* A configured JoinMarket [JSON-RPC server](https://github.com/abhishek0405/joinmarket-clientserver/blob/rpc-api-2/docs/JSON-RPC-API-using-jmwalletd.md).
+* [JoinMarket](https://github.com/JoinMarket-Org/joinmarket-clientserver) master branch.
+* A configured JoinMarket [JSON-RPC server](https://github.com/JoinMarket-Org/joinmarket-clientserver/blob/master/docs/JSON-RPC-API-using-jmwalletd.md).
 * Python >= 3.7
 
 # Installation
