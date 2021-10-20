@@ -4,7 +4,7 @@ A simple, high-level, and fully asynchronous JSON-RPC client library for [JoinMa
 
 # Requirements
 
-* [JoinMarket](https://github.com/JoinMarket-Org/joinmarket-clientserver) master branch.
+* [JoinMarket](https://github.com/JoinMarket-Org/joinmarket-clientserver) >= 0.9.3
 * A configured JoinMarket [JSON-RPC server](https://github.com/JoinMarket-Org/joinmarket-clientserver/blob/master/docs/JSON-RPC-API-using-jmwalletd.md).
 * Python >= 3.7
 
